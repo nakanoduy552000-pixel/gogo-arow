@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>GOGO! Arrow Escape - Mũi Tên Tẩu Thoát</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Fredoka', 'Nunito', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            background-color: #0b132b;
+        }
+
+        .game-card {
+            background: rgba(28, 37, 65, 0.9);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Tile Styling */
+        .tile-cell {
+            position: relative;
+            transition: transform 0.1s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .tile-inner {
+            background-color: #1e293b;
+            border: 2px solid #334155;
+            border-bottom-width: 5px;
+            border-radius: 1.25rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .tile-inner:active {
+            transform: translateY(2px);
+            border-bottom-width: 3px;
+        }
+
+        /* Arrow SVG Glow */
+        .arrow-svg {
+            fill: none;
+            stroke: #38bdf8;
+            stroke-width: 5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0px 0px 6px rgba(56, 189, 248, 0.5));
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Shake Error Animation */
+        @keyframes shakeRed {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px) rotate(-4deg); }
+            40% { transform: translateX(8px) rotate(4deg); }
+            60% { transform: translateX(-6px) rotate(-2deg); }
+            80% { transform: translateX(6px) rotate(2deg); }
+        }
+
+        .shake-error {
+            animation: shakeRed 0.35s ease-in-out;
+            background-color: #450a0a !important;
+            border-color: #ef4444 !important;
+        }
+
+        .shake-error .arrow-svg {
+            stroke: #f87171 !important;
+            filter: drop-shadow(0px 0px 8px rgba(239, 68, 68, 0.8));
+        }
+
+        /* Hint Pulse Animation */
+        @keyframes hintPulse {
+            0%, 100% { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.6); }
+            50% { border-color: #fef08a; box-shadow: 0 0 25px rgba(254, 240, 138, 0.9); }
+        }
+
+        .hint-active {
+            animation: hintPulse 0.8s infinite ease-in-out;
+            background-color: #2e1065 !important;
+        }
+
+        .hint-active .arrow-svg {
+            stroke: #fbbf24 !important;
+        }
+
+        /* Fly Off Animations */
+        .fly-up { transform: translateY(-1000px) scale(0.7); opacity: 0; transition: transform 0.5s ease-in, opacity 0.4s ease-in; }
+        .fly-down { transform: translateY(1000px) scale(0.7); opacity: 0; transition: transform 0.5s ease-in, opacity 0.4s ease-in; }
+        .fly-left { transform: translateX(-1000px) scale(0.7); opacity: 0; transition: transform 0.5s ease-in, opacity 0.4s ease-in; }
+        .fly-right { transform: translateX(1000px) scale(0.7); opacity: 0; transition: transform 0.5s ease-in, opacity 0.4s ease-in; }
+
+        .btn-action {
+            box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+            transition: all 0.15s ease;
+        }
+        .btn-action:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body class="text-slate-100 flex items-center justify-center min-h-screen p-2 sm:p-4">
+
+    <!-- MAIN GAME CONTAINER -->
+    <div id="gameContainer" class="w-full max-w-md h-[96vh] max-h-[850px] game-card rounded-3xl flex flex-col justify-between overflow-hidden relative shadow-2xl p-3 sm:p-4 border border-slate-700/50">
+
+        <!-- HEADER BAR -->
+        <header class="flex items-center justify-between gap-2 bg-slate-800/80 p-2.5 rounded-2xl border border-slate-700">
+            <!-- Reset Button -->
+            <button onclick="resetLevel()" title="Chơi lại" class="w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center border border-slate-600 shadow-sm active:scale-95 transition">
+                <i class="fa-solid fa-rotate-right text-sm"></i>
+            </button>
+
+            <!-- Level Badge -->
+            <div class="flex flex-col items-center justify-center bg-indigo-950 px-3 py-1 rounded-xl border border-indigo-700 shadow-sm min-w-[75px]">
+                <span class="text-[9px] uppercase font-bold text-indigo-400 tracking-wider">MÀN</span>
+                <span id="levelText" class="text-lg font-black text-indigo-200 leading-none">1</span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="flex-1 flex flex-col justify-center px-1">
+                <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 mb-1">
+                    <span>TIẾN ĐỘ</span>
+                    <span id="percentText" class="text-amber-400 font-extrabold">0%</span>
+                </div>
+                <div class="w-full h-3 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                    <div id="progressBar" class="h-full bg-gradient-to-r from-sky-500 via-indigo-500 to-amber-400 rounded-full transition-all duration-300 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Sound Mute Toggle -->
+            <button id="soundBtn" onclick="toggleSound()" class="w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center border border-slate-600 shadow-sm active:scale-95 transition">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-sm text-sky-400"></i>
+            </button>
+        </header>
+
+        <!-- GAME BOARD GRID AREA -->
+        <div class="flex-1 my-3 relative flex items-center justify-center min-h-0 w-full overflow-hidden">
+            <div id="gridBoard" class="grid gap-2 p-3 bg-slate-900/80 rounded-2xl border border-slate-800 shadow-inner w-full max-w-[380px] aspect-square transition-all duration-300">
+                <!-- Tiles dynamically generated -->
+            </div>
+
+            <!-- Toast Notification -->
+            <div id="toastMessage" class="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-slate-900/95 border border-amber-500/50 text-amber-300 text-xs font-bold shadow-xl opacity-0 pointer-events-none transition-all duration-300 transform -translate-y-2 flex items-center space-x-2 z-20">
+                <span id="toastIcon">💡</span>
+                <span id="toastText">Khối tự do đã được nhấp nháy!</span>
+            </div>
+        </div>
+
+        <!-- FOOTER TOOLBAR -->
+        <footer class="flex items-center justify-around bg-slate-800/80 p-2.5 rounded-2xl border border-slate-700">
+            <!-- Theme Switcher -->
+            <button onclick="toggleTheme()" class="w-11 h-11 rounded-2xl bg-slate-700/80 hover:bg-slate-700 text-slate-200 flex flex-col items-center justify-center border border-slate-600 btn-action">
+                <i class="fa-solid fa-palette text-base text-purple-400"></i>
+                <span class="text-[9px] font-bold mt-0.5 text-slate-400">Đổi màu</span>
+            </button>
+
+            <!-- Hint Button -->
+            <button onclick="useHint()" class="w-14 h-12 px-3 py-1 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 flex flex-col items-center justify-center border border-amber-400 shadow-md btn-action relative">
+                <i class="fa-solid fa-lightbulb text-lg text-slate-950"></i>
+                <span class="text-[9px] font-black text-slate-950 mt-0.5 uppercase tracking-tight">Gợi Ý</span>
+            </button>
+
+            <!-- Achievements / Stats -->
+            <button onclick="openStatsModal()" class="w-11 h-11 rounded-2xl bg-slate-700/80 hover:bg-slate-700 text-slate-200 flex flex-col items-center justify-center border border-slate-600 btn-action">
+                <i class="fa-solid fa-trophy text-base text-amber-400"></i>
+                <span class="text-[9px] font-bold mt-0.5 text-slate-400">Thành tích</span>
+            </button>
+        </footer>
+    </div>
+
+    <!-- VICTORY MODAL -->
+    <div id="victoryModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="game-card max-w-xs w-full bg-slate-900 p-6 rounded-3xl text-center space-y-4 border border-indigo-500/30 shadow-2xl transform scale-95 transition-all">
+            <div class="w-16 h-16 rounded-3xl bg-amber-500/20 text-amber-400 mx-auto flex items-center justify-center text-3xl border border-amber-500/40 shadow-inner">
+                ⭐
+            </div>
+            <div>
+                <h2 class="text-2xl font-black text-white">HOÀN THÀNH!</h2>
+                <p class="text-xs text-slate-400 mt-1">Bạn đã tháo gỡ toàn bộ mũi tên an toàn!</p>
+            </div>
+
+            <!-- Stats -->
+            <div class="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 text-xs space-y-2">
+                <div class="flex justify-center space-x-2 text-2xl text-amber-400">
+                    <span id="star1">★</span>
+                    <span id="star2">★</span>
+                    <span id="star3">★</span>
+                </div>
+                <div class="flex justify-between text-slate-300 pt-1">
+                    <span>Thời gian giải:</span>
+                    <span id="victoryTime" class="font-black text-sky-400">00:00</span>
+                </div>
+                <div class="flex justify-between text-slate-300">
+                    <span>Chạm va kẹt:</span>
+                    <span id="victoryBumps" class="font-black text-rose-400">0</span>
+                </div>
+            </div>
+
+            <button onclick="nextLevel()" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 font-black text-white text-sm shadow-lg btn-action active:scale-95">
+                MÀN TIẾP THEO <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- STATS & LEVEL SELECTOR MODAL -->
+    <div id="statsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="game-card max-w-sm w-full bg-slate-900 p-5 rounded-3xl space-y-4 border border-slate-700 shadow-2xl max-h-[88vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-trophy text-amber-400 text-lg"></i>
+                    <h3 class="font-black text-lg text-white">Bảng Thành Tích</h3>
+                </div>
+                <button onclick="closeStatsModal()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto space-y-3 flex-1 pr-1">
+                <!-- Overview Stats -->
+                <div class="grid grid-cols-2 gap-2 text-center">
+                    <div class="bg-indigo-950/60 p-3 rounded-2xl border border-indigo-800/50">
+                        <span class="text-[10px] font-bold text-indigo-400 block uppercase tracking-wider">Màn Cao Nhất</span>
+                        <span id="statMaxLevel" class="text-xl font-black text-indigo-200">1</span>
+                    </div>
+                    <div class="bg-amber-950/60 p-3 rounded-2xl border border-amber-800/50">
+                        <span class="text-[10px] font-bold text-amber-400 block uppercase tracking-wider">Tổng Ngôi Sao</span>
+                        <span id="statTotalStars" class="text-xl font-black text-amber-200">0</span>
+                    </div>
+                </div>
+
+                <!-- Level Selector Grid -->
+                <div class="bg-slate-800/60 p-3 rounded-2xl border border-slate-700/60">
+                    <h4 class="text-xs font-bold text-slate-300 mb-2">Chọn Màn Chơi</h4>
+                    <div id="levelGrid" class="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto p-1">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUDIO ENGINE (Web Audio API) -->
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playPop() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(900, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playBump() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(70, this.ctx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playWin() {
+                if (!this.enabled) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.08);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + i * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.08 + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + i * 0.08);
+                    osc.stop(this.ctx.currentTime + i * 0.08 + 0.25);
+                });
+            }
+        }
+
+        const sound = new SoundEngine();
+    </script>
+
+    <!-- MAIN GAME SCRIPT WITH STRICT SOLVER -->
+    <script>
+        const DIRS = {
+            UP: { dr: -1, dc: 0, rot: 0, class: 'fly-up' },
+            DOWN: { dr: 1, dc: 0, rot: 180, class: 'fly-down' },
+            LEFT: { dr: 0, dc: -1, rot: -90, class: 'fly-left' },
+            RIGHT: { dr: 0, dc: 1, rot: 90, class: 'fly-right' }
+        };
+
+        const THEME_PALETTES = [
+            { bg: '#1e293b', border: '#334155', arrow: '#38bdf8' }, // Ocean Blue
+            { bg: '#312e81', border: '#4338ca', arrow: '#34d399' }, // Emerald Purple
+            { bg: '#4c1d95', border: '#6d28d9', arrow: '#f472b6' }  // Neon Pink
+        ];
+
+        let currentTheme = 0;
+        let currentLevel = 1;
+        let rows = 3;
+        let cols = 3;
+        let board = [];
+        let totalTiles = 0;
+        let remainingTiles = 0;
+        let bumpCount = 0;
+        let levelStartTime = 0;
+        let isAnimating = false;
+
+        let userStats = JSON.parse(localStorage.getItem('gogo_arrow_strict_stats')) || {
+            maxLevelUnlocked: 1,
+            totalStars: 0,
+            completedLevels: {}
+        };
+
+        function saveStats() {
+            localStorage.setItem('gogo_arrow_strict_stats', JSON.stringify(userStats));
+        }
+
+        // SVG Arrow Template Generator
+        function getArrowSVG(rot, arrowColor) {
+            return `
+            <svg class="arrow-svg w-1/2 h-1/2" viewBox="0 0 24 24" style="transform: rotate(${rot}deg); stroke: ${arrowColor};">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>`;
+        }
+
+        // -------------------------------------------------------------
+        // STRICT SOLVER: Simulates solving the board step by step
+        // Returns true only if 100% of tiles can escape safely!
+        // -------------------------------------------------------------
+        function canCompletelySolve(testBoard, rCount, cCount) {
+            // Deep copy board matrix
+            let simBoard = testBoard.map(row => row ? [...row] : null);
+            let total = 0;
+
+            for (let r = 0; r < rCount; r++) {
+                for (let c = 0; c < cCount; c++) {
+                    if (simBoard[r][c] !== null) total++;
+                }
+            }
+
+            let clearedInPass = true;
+            let clearedTotal = 0;
+
+            while (clearedInPass && clearedTotal < total) {
+                clearedInPass = false;
+
+                for (let r = 0; r < rCount; r++) {
+                    for (let c = 0; c < cCount; c++) {
+                        const tile = simBoard[r][c];
+                        if (tile === null) continue;
+
+                        const dir = DIRS[tile.dir];
+                        let currR = r + dir.dr;
+                        let currC = c + dir.dc;
+                        let isBlocked = false;
+
+                        // Raycast to edge
+                        while (currR >= 0 && currR < rCount && currC >= 0 && currC < cCount) {
+                            if (simBoard[currR][currC] !== null) {
+                                isBlocked = true;
+                                break;
+                            }
+                            currR += dir.dr;
+                            currC += dir.dc;
+                        }
+
+                        // Free tile found!
+                        if (!isBlocked) {
+                            simBoard[r][c] = null;
+                            clearedTotal++;
+                            clearedInPass = true;
+                        }
+                    }
+                }
+            }
+
+            return clearedTotal === total;
+        }
+
+        // LEVEL GENERATOR WITH GUARANTEED SOLVABILITY
+        function initLevel(lvl) {
+            currentLevel = lvl;
+            bumpCount = 0;
+            levelStartTime = Date.now();
+            isAnimating = false;
+
+            // Grid scaling
+            if (lvl === 1) { rows = 3; cols = 3; }
+            else if (lvl <= 3) { rows = 4; cols = 4; }
+            else if (lvl <= 7) { rows = 5; cols = 5; }
+            else { rows = 5; cols = 5; }
+
+            const dirKeys = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
+            let validBoardFound = false;
+            let attempts = 0;
+
+            let targetTileCount = Math.floor(rows * cols * 0.7);
+            if (lvl === 1) targetTileCount = 3; // Easy start for Level 1
+
+            while (!validBoardFound && attempts < 200) {
+                attempts++;
+                board = Array.from({ length: rows }, () => Array(cols).fill(null));
+
+                // 1. Pick random grid positions
+                let positions = [];
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) positions.push({ r, c });
+                }
+                positions.sort(() => Math.random() - 0.5);
+                const selected = positions.slice(0, targetTileCount);
+
+                // 2. Assign random directions
+                selected.forEach(({ r, c }) => {
+                    const randomDir = dirKeys[Math.floor(Math.random() * dirKeys.length)];
+                    board[r][c] = { r, c, dir: randomDir };
+                });
+
+                // 3. Verify with Strict Solver Engine
+                if (canCompletelySolve(board, rows, cols)) {
+                    validBoardFound = true;
+                }
+            }
+
+            totalTiles = targetTileCount;
+            remainingTiles = targetTileCount;
+
+            renderBoard();
+            updateUI();
+        }
+
+        function renderBoard() {
+            const gridEl = document.getElementById('gridBoard');
+            gridEl.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+            gridEl.innerHTML = '';
+
+            const theme = THEME_PALETTES[currentTheme];
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'w-full aspect-square relative flex items-center justify-center';
+                    cell.id = `cell-${r}-${c}`;
+
+                    const tile = board[r][c];
+                    if (tile) {
+                        const tileInner = document.createElement('div');
+                        tileInner.className = 'tile-inner w-full h-full';
+                        tileInner.style.backgroundColor = theme.bg;
+                        tileInner.style.borderColor = theme.border;
+                        tileInner.id = `tile-${r}-${c}`;
+
+                        tileInner.innerHTML = getArrowSVG(DIRS[tile.dir].rot, theme.arrow);
+
+                        tileInner.onclick = () => handleTileClick(r, c);
+                        cell.appendChild(tileInner);
+                    }
+
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function handleTileClick(r, c) {
+            if (isAnimating) return;
+            const tile = board[r][c];
+            if (!tile) return;
+
+            // Clear any active hints
+            document.querySelectorAll('.hint-active').forEach(el => el.classList.remove('hint-active'));
+
+            const dir = DIRS[tile.dir];
+            let currR = r + dir.dr;
+            let currC = c + dir.dc;
+            let isBlocked = false;
+
+            // Check escape raycast
+            while (currR >= 0 && currR < rows && currC >= 0 && currC < cols) {
+                if (board[currR][currC] !== null) {
+                    isBlocked = true;
+                    break;
+                }
+                currR += dir.dr;
+                currC += dir.dc;
+            }
+
+            const tileEl = document.getElementById(`tile-${r}-${c}`);
+
+            if (isBlocked) {
+                // BLOCKED: Shake & Error Sound
+                sound.playBump();
+                bumpCount++;
+                tileEl.classList.add('shake-error');
+                setTimeout(() => {
+                    tileEl.classList.remove('shake-error');
+                }, 350);
+            } else {
+                // CLEAR: Fly Off Animation
+                sound.playPop();
+                board[r][c] = null;
+                remainingTiles--;
+
+                tileEl.classList.add(dir.class);
+
+                setTimeout(() => {
+                    tileEl.remove();
+                    updateUI();
+
+                    if (remainingTiles <= 0) {
+                        setTimeout(onLevelWin, 250);
+                    }
+                }, 400);
+            }
+        }
+
+        function useHint() {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const tile = board[r][c];
+                    if (tile) {
+                        const dir = DIRS[tile.dir];
+                        let currR = r + dir.dr;
+                        let currC = c + dir.dc;
+                        let blocked = false;
+
+                        while (currR >= 0 && currR < rows && currC >= 0 && currC < cols) {
+                            if (board[currR][currC] !== null) {
+                                blocked = true;
+                                break;
+                            }
+                            currR += dir.dr;
+                            currC += dir.dc;
+                        }
+
+                        if (!blocked) {
+                            const tileEl = document.getElementById(`tile-${r}-${c}`);
+                            if (tileEl) {
+                                tileEl.classList.add('hint-active');
+                                showToast("💡 Mũi tên tự do đã phát sáng!");
+                                sound.playPop();
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            showToast("⚠️ Không có mũi tên nào thoát được ngay!");
+        }
+
+        function updateUI() {
+            document.getElementById('levelText').innerText = currentLevel;
+            const progress = totalTiles > 0 ? Math.round(((totalTiles - remainingTiles) / totalTiles) * 100) : 0;
+            document.getElementById('percentText').innerText = `${progress}%`;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastMessage');
+            document.getElementById('toastText').innerText = msg;
+            toast.classList.remove('opacity-0', '-translate-y-2', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2', 'pointer-events-none');
+            }, 2000);
+        }
+
+        function onLevelWin() {
+            sound.playWin();
+
+            const durationSec = Math.round((Date.now() - levelStartTime) / 1000);
+            const formattedTime = `${Math.floor(durationSec / 60).toString().padStart(2, '0')}:${(durationSec % 60).toString().padStart(2, '0')}`;
+
+            let stars = 3;
+            if (bumpCount > 3) stars = 1;
+            else if (bumpCount > 0) stars = 2;
+
+            if (currentLevel >= userStats.maxLevelUnlocked) {
+                userStats.maxLevelUnlocked = currentLevel + 1;
+            }
+            userStats.totalStars += stars;
+            userStats.completedLevels[currentLevel] = { stars, time: formattedTime };
+            saveStats();
+
+            document.getElementById('star1').style.opacity = stars >= 1 ? '1' : '0.2';
+            document.getElementById('star2').style.opacity = stars >= 2 ? '1' : '0.2';
+            document.getElementById('star3').style.opacity = stars >= 3 ? '1' : '0.2';
+            document.getElementById('victoryTime').innerText = formattedTime;
+            document.getElementById('victoryBumps').innerText = bumpCount;
+
+            document.getElementById('victoryModal').classList.remove('hidden');
+        }
+
+        function nextLevel() {
+            document.getElementById('victoryModal').classList.add('hidden');
+            initLevel(currentLevel + 1);
+        }
+
+        function resetLevel() {
+            initLevel(currentLevel);
+        }
+
+        function toggleTheme() {
+            currentTheme = (currentTheme + 1) % THEME_PALETTES.length;
+            renderBoard();
+            showToast("🎨 Đã đổi màu giao diện!");
+        }
+
+        function toggleSound() {
+            sound.enabled = !sound.enabled;
+            const icon = document.getElementById('soundIcon');
+            icon.className = sound.enabled ? "fa-solid fa-volume-high text-sm text-sky-400" : "fa-solid fa-volume-xmark text-sm text-slate-500";
+        }
+
+        function openStatsModal() {
+            document.getElementById('statMaxLevel').innerText = userStats.maxLevelUnlocked;
+            document.getElementById('statTotalStars').innerText = userStats.totalStars;
+
+            const grid = document.getElementById('levelGrid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= Math.max(15, userStats.maxLevelUnlocked); i++) {
+                const isUnlocked = i <= userStats.maxLevelUnlocked;
+                const btn = document.createElement('button');
+                btn.className = `p-2 rounded-xl text-xs font-black transition ${isUnlocked ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-sm' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`;
+                btn.innerText = i;
+                if (isUnlocked) {
+                    btn.onclick = () => {
+                        closeStatsModal();
+                        initLevel(i);
+                    };
+                }
+                grid.appendChild(btn);
+            }
+
+            document.getElementById('statsModal').classList.remove('hidden');
+        }
+
+        function closeStatsModal() {
+            document.getElementById('statsModal').classList.add('hidden');
+        }
+
+        window.onload = () => {
+            initLevel(1);
+        };
+    </script>
+</body>
+</html>
